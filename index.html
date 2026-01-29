@@ -31,7 +31,7 @@
   <div id="root"></div>
   
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect } = React;
 
     const INITIAL_PLAYERS = [
       'Player 1', 'Player 2', 'Player 3', 'Player 4', 
@@ -51,7 +51,17 @@
     };
 
     function VolleyballRotation() {
-      const [players, setPlayers] = useState(INITIAL_PLAYERS);
+      // Load saved data from localStorage
+      const loadSaved = (key, defaultValue) => {
+        try {
+          const saved = localStorage.getItem(key);
+          return saved ? JSON.parse(saved) : defaultValue;
+        } catch {
+          return defaultValue;
+        }
+      };
+
+      const [players, setPlayers] = useState(() => loadSaved('vb_players', INITIAL_PLAYERS));
       const [editingPlayer, setEditingPlayer] = useState(null);
       const [editValue, setEditValue] = useState('');
       
@@ -65,11 +75,33 @@
       const [benchOrder, setBenchOrder] = useState([]);
       
       const [currentGameNum, setCurrentGameNum] = useState(1);
-      const [savedGames, setSavedGames] = useState({
+      const [savedGames, setSavedGames] = useState(() => loadSaved('vb_savedGames', {
         1: null,
         2: null,
         3: null
-      });
+      }));
+
+      // Save to localStorage whenever data changes
+      useEffect(() => {
+        localStorage.setItem('vb_players', JSON.stringify(players));
+      }, [players]);
+
+      useEffect(() => {
+        localStorage.setItem('vb_savedGames', JSON.stringify(savedGames));
+      }, [savedGames]);
+
+      const resetAllData = () => {
+        if (confirm('Reset all data? This will clear all player names and saved games.')) {
+          localStorage.removeItem('vb_players');
+          localStorage.removeItem('vb_savedGames');
+          setPlayers(INITIAL_PLAYERS);
+          setCourt([0, 1, 2, 3, 4, 5]);
+          setStayOn([0, 1]);
+          setBenchOrder([]);
+          setSavedGames({ 1: null, 2: null, 3: null });
+          setCurrentGameNum(1);
+        }
+      };
 
       const hasUnsavedChanges = () => {
         const saved = savedGames[currentGameNum];
@@ -609,6 +641,14 @@
                   }`}
                 >
                   {stayOn.length === 2 ? `START GAME ${currentGameNum}! 🏐` : 'Select 2 Stay-On Players'}
+                </button>
+                
+                {/* Reset All Data */}
+                <button
+                  onClick={resetAllData}
+                  className="w-full py-2 text-slate-500 text-sm hover:text-red-400 transition-colors mt-4"
+                >
+                  🗑️ Reset All Data
                 </button>
               </div>
             </div>
