@@ -368,23 +368,51 @@
                   const showUnsaved = isCurrent && isSaved && hasUnsavedChanges();
                   
                   return (
-                    <button
-                      key={gameNum}
-                      onClick={() => selectGameTab(gameNum)}
-                      className={`flex-1 min-w-[80px] py-3 sm:py-4 rounded-2xl font-bold text-sm sm:text-base transition-all relative ${
-                        isCurrent
-                          ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-lg shadow-teal-500/30'
-                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                    >
-                      Rotation {gameNum}
-                      {isSaved && !showUnsaved && (
-                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full flex items-center justify-center text-xs text-slate-900">✓</span>
+                    <div key={gameNum} className="relative flex-1 min-w-[80px]">
+                      <button
+                        onClick={() => selectGameTab(gameNum)}
+                        className={`w-full py-3 sm:py-4 rounded-2xl font-bold text-sm sm:text-base transition-all relative ${
+                          isCurrent
+                            ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-lg shadow-teal-500/30'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        Rotation {gameNum}
+                        {isSaved && !showUnsaved && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full flex items-center justify-center text-xs text-slate-900">✓</span>
+                        )}
+                        {showUnsaved && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-xs text-slate-900">•</span>
+                        )}
+                      </button>
+                      {numRotationSlots > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete Rotation ${gameNum}?`)) {
+                              // Remove this rotation's saved data
+                              const newSaved = { ...savedGames };
+                              delete newSaved[gameNum];
+                              // Shift down higher numbered rotations
+                              for (let i = gameNum + 1; i <= numRotationSlots; i++) {
+                                if (newSaved[i]) {
+                                  newSaved[i - 1] = newSaved[i];
+                                  delete newSaved[i];
+                                }
+                              }
+                              setSavedGames(newSaved);
+                              setNumRotationSlots(prev => prev - 1);
+                              if (currentGameNum >= gameNum && currentGameNum > 1) {
+                                setCurrentGameNum(prev => prev - 1);
+                              }
+                            }
+                          }}
+                          className="absolute -top-2 -left-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white hover:bg-red-600 transition-colors"
+                        >
+                          ×
+                        </button>
                       )}
-                      {showUnsaved && (
-                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-xs text-slate-900">•</span>
-                      )}
-                    </button>
+                    </div>
                   );
                 })}
                 <button
