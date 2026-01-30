@@ -75,11 +75,9 @@
       const [benchOrder, setBenchOrder] = useState([]);
       
       const [currentGameNum, setCurrentGameNum] = useState(1);
-      const [savedGames, setSavedGames] = useState(() => loadSaved('vb_savedGames', {
-        1: null,
-        2: null,
-        3: null
-      }));
+      const [savedGames, setSavedGames] = useState(() => loadSaved('vb_savedGames', {}));
+      const [numRotationSlots, setNumRotationSlots] = useState(() => loadSaved('vb_numSlots', 3));
+      const [history, setHistory] = useState([]); // For undo functionality
 
       // Save to localStorage whenever data changes
       useEffect(() => {
@@ -90,15 +88,21 @@
         localStorage.setItem('vb_savedGames', JSON.stringify(savedGames));
       }, [savedGames]);
 
+      useEffect(() => {
+        localStorage.setItem('vb_numSlots', JSON.stringify(numRotationSlots));
+      }, [numRotationSlots]);
+
       const resetAllData = () => {
-        if (confirm('Reset all data? This will clear all player names and saved games.')) {
+        if (confirm('Reset all data? This will clear all player names and saved rotations.')) {
           localStorage.removeItem('vb_players');
           localStorage.removeItem('vb_savedGames');
+          localStorage.removeItem('vb_numSlots');
           setPlayers(INITIAL_PLAYERS);
           setCourt([0, 1, 2, 3, 4, 5]);
           setStayOn([0, 1]);
           setBenchOrder([]);
-          setSavedGames({ 1: null, 2: null, 3: null });
+          setSavedGames({});
+          setNumRotationSlots(3);
           setCurrentGameNum(1);
         }
       };
@@ -263,9 +267,18 @@
         setBenchIndex(0);
         setSetupMode(false);
         setRotationCount(0);
+        setHistory([]); // Clear undo history
       };
 
       const rotate = () => {
+        // Save current state for undo
+        setHistory(prev => [...prev, {
+          court: [...court],
+          bench: [...bench],
+          benchIndex: benchIndex,
+          rotationCount: rotationCount
+        }]);
+        
         const newCourt = [
           court[1],
           court[2],
@@ -287,6 +300,17 @@
         
         setCourt(newCourt);
         setRotationCount(rotationCount + 1);
+      };
+
+      const undoRotation = () => {
+        if (history.length === 0) return;
+        
+        const lastState = history[history.length - 1];
+        setCourt(lastState.court);
+        setBench(lastState.bench);
+        setBenchIndex(lastState.benchIndex);
+        setRotationCount(lastState.rotationCount);
+        setHistory(prev => prev.slice(0, -1));
       };
 
       const resetGame = () => {
@@ -336,24 +360,24 @@
               </h1>
               <p className="text-center text-slate-400 text-sm mb-4">Tap names to edit • Stay-on players are optional</p>
               
-              {/* Game Tabs */}
-              <div className="flex gap-2 mb-4">
-                {[1, 2, 3].map((gameNum) => {
+              {/* Rotation Tabs */}
+              <div className="flex gap-2 mb-4 flex-wrap">
+                {Array.from({ length: numRotationSlots }, (_, i) => i + 1).map((gameNum) => {
                   const isCurrent = currentGameNum === gameNum;
-                  const isSaved = savedGames[gameNum] !== null;
+                  const isSaved = savedGames[gameNum] !== null && savedGames[gameNum] !== undefined;
                   const showUnsaved = isCurrent && isSaved && hasUnsavedChanges();
                   
                   return (
                     <button
                       key={gameNum}
                       onClick={() => selectGameTab(gameNum)}
-                      className={`flex-1 py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg transition-all relative ${
+                      className={`flex-1 min-w-[80px] py-3 sm:py-4 rounded-2xl font-bold text-sm sm:text-base transition-all relative ${
                         isCurrent
                           ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-lg shadow-teal-500/30'
                           : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                       }`}
                     >
-                      Game {gameNum}
+                      Rot {gameNum}
                       {isSaved && !showUnsaved && (
                         <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full flex items-center justify-center text-xs text-slate-900">✓</span>
                       )}
@@ -363,16 +387,23 @@
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => setNumRotationSlots(prev => prev + 1)}
+                  className="w-12 py-3 sm:py-4 rounded-2xl font-bold text-lg bg-slate-700 text-emerald-400 hover:bg-slate-600 transition-all"
+                >
+                  +
+                </button>
               </div>
               
               {/* Copy Roster Option */}
               {(() => {
-                const otherSavedGames = [1, 2, 3].filter(g => g !== currentGameNum && savedGames[g] !== null);
+                const otherSavedGames = Array.from({ length: numRotationSlots }, (_, i) => i + 1)
+                  .filter(g => g !== currentGameNum && savedGames[g] !== null && savedGames[g] !== undefined);
                 if (otherSavedGames.length === 0) return null;
                 
                 return (
                   <div className="flex items-center justify-end gap-2 mb-4">
-                    <span className="text-slate-400 text-sm">Copy roster from</span>
+                    <span className="text-slate-400 text-sm">Copy from</span>
                     <select
                       onChange={(e) => {
                         const gameNum = parseInt(e.target.value);
@@ -388,7 +419,7 @@
                     >
                       <option value="" disabled>Select...</option>
                       {otherSavedGames.map(g => (
-                        <option key={g} value={g}>Game {g}</option>
+                        <option key={g} value={g}>Rotation {g}</option>
                       ))}
                     </select>
                   </div>
@@ -612,7 +643,7 @@
                     onClick={saveCurrentGame}
                     className="flex-1 py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 bg-slate-700 text-white hover:bg-slate-600 border-2 border-slate-600"
                   >
-                    💾 Save Game {currentGameNum}
+                    💾 Save Rotation {currentGameNum}
                     {savedGames[currentGameNum] && !hasUnsavedChanges() && <span className="text-green-400">✓</span>}
                     {savedGames[currentGameNum] && hasUnsavedChanges() && <span className="text-yellow-400">•</span>}
                   </button>
@@ -634,7 +665,7 @@
                   }}
                   className="w-full py-4 sm:py-5 rounded-2xl font-black text-lg sm:text-xl tracking-wide transition-all bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-xl shadow-teal-500/30 active:scale-[0.98]"
                 >
-                  {`START GAME ${currentGameNum}! 🏐`}
+                  {`START ROTATION ${currentGameNum}! 🏐`}
                 </button>
                 
                 {/* Reset All Data */}
@@ -655,7 +686,7 @@
         <div className="min-h-screen p-4 pb-8">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <h1 className="title-font text-3xl sm:text-4xl text-white tracking-wider">🏐 GAME {currentGameNum}</h1>
+              <h1 className="title-font text-3xl sm:text-4xl text-white tracking-wider">🏐 ROTATION {currentGameNum}</h1>
               <div className="bg-slate-700 px-3 sm:px-4 py-2 rounded-full">
                 <span className="text-slate-400 text-xs sm:text-sm">Rotations: </span>
                 <span className="text-white font-bold">{rotationCount}</span>
@@ -707,12 +738,25 @@
             </div>
 
             {/* Rotate Button */}
-            <button
-              onClick={rotate}
-              className="w-full py-5 sm:py-6 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black text-xl sm:text-2xl tracking-wide shadow-xl shadow-teal-500/30 active:scale-[0.98] transition-all mb-4"
-            >
-              🔄 ROTATE
-            </button>
+            <div className="flex gap-3 mb-4">
+              <button
+                onClick={undoRotation}
+                disabled={history.length === 0}
+                className={`py-5 sm:py-6 px-6 rounded-2xl font-black text-xl sm:text-2xl tracking-wide shadow-xl transition-all ${
+                  history.length === 0
+                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                    : 'bg-slate-600 text-white hover:bg-slate-500 active:scale-[0.98]'
+                }`}
+              >
+                ↩️
+              </button>
+              <button
+                onClick={rotate}
+                className="flex-1 py-5 sm:py-6 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black text-xl sm:text-2xl tracking-wide shadow-xl shadow-teal-500/30 active:scale-[0.98] transition-all"
+              >
+                🔄 ROTATE
+              </button>
+            </div>
 
             {/* Reset Button */}
             <button
